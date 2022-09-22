@@ -1,0 +1,959 @@
+---
+pdf_document: 
+  fig_width: 7
+  fig_height: 7
+  highlight: kate
+author: "Daniel David de Oliveira"
+date: "04 de Março de 2021"
+output: 
+  pdf_document: 
+    fig_width: 7
+    fig_height: 7
+title: "MobAuto - Prova Técnica"
+institute:
+document class: article
+header-includes:
+- \usepackage[T1]{fontenc}
+- \usepackage[utf8]{inputenc}
+- \usepackage{amsmath}
+- \usepackage{setspace}\singlespacing
+- \usepackage{float}
+- \usepackage{graphicx}
+- \usepackage{multirow}
+subtitle: 
+fig_width: 10
+fontsize: 12pt
+geometry: margin=0.75in
+fig_height: 6
+classoption: a4paper
+---
+
+# **Prova Técnica**
+
+## **Contexto da MobAuto**
+
+Atuamos no setor de mobilidade automobilística e temos por objetivo facilitar a dinâmica do mercado, tornando o processo de vendas mais fácil e lucrativo aos vendedores e também auxiliando as pessoas na escolha do carro a ser comprado.
+
+# **Problema**
+
+O desafio consiste em fornecer informações a quatro concessionárias para entender melhor o comportamento sobre o mercado de carros. Elas desejam auxílio para compor seu estoque, escolhendo quais produtos devem trazer para a sua loja, tais como marca, ano e cor, por exemplo.
+
+Cada uma está em um Estado diferente, sendo eles: São Paulo, Distrito Federal, Bahia e Rio Grande do Sul.
+
+Em um primeiro momento, ambas concessionárias pediram pelas seguintes informações:
+
+
+**1) ** A minha região (estado) possui algum comportamento que se difere do Brasil?
+Nos quesitos:
+
+**a)** A cor de um carro parece importar no seu preço?
+
+**b)** Quais são as marcas e modelos mais presentes no mercado?
+
+**2)** Olhando para os modelos mais predominantes (maior presença) na minha região:
+
+**a)** Algum deles apresenta uma maior desvalorização? Ou uma maior valorização (caso ocorra)? Comparar preços ao longo do tempo (outubro, novembro e dezembro).
+
+**b)** Existe uma desvalorização do carro baseado na quilometragem dele? Comparar preços mediante à quilometragem.
+
+Bibliotecas a serem utilizadas
+
+
+&nbsp;
+
+# ***Resposta ***
+
+```{r, warning=FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(lattice)
+library(gplots)
+library(dunn.test)
+
+options(scipen = 10000000) #Tirar a notação científica dos gráficos
+
+
+
+```
+
+Lendo o banco de dados e nomeando as variáveis
+
+```{r}
+
+setwd("C:\\Users\\danie\\OneDrive\\Documentos\\R\\Cases\\MobAuto")
+
+dados = read.csv("car_data_intern.csv", 
+                 sep = ",", na.strings="NA",
+                 stringsAsFactors=T)
+
+#criando um data.frame espelho
+dds <- dados
+
+
+#Nomeando as variáveis
+colnames(dds) = c('data','marca','modelo',
+                  'ano','preco',
+                  'km','estado',
+                  'cor')
+
+
+```
+
+Verificando se há dados faltantes
+
+```{r, warning=FALSE, message=FALSE}
+    #Usei no R, e tirei do .pdf
+#dds[!complete.cases(dds),]
+
+```
+
+
+```{r}
+
+summary(dds$preco)
+
+```
+
+A variável Preço possui NAs nas quais substutuirei pela mediana, pois são 120 NAs, corresponde menos de 1% das observações do banco de dados.
+
+Substituindo
+
+```{r}
+#Substituindo os NAs pela mediana
+dds[is.na(dds$preco),]$preco = median(dds$preco, na.rm = T)
+
+```
+
+
+&nbsp;
+
+**1) a)** A cor de um carro parece importar no seu preço?
+
+Estou filtrando as cores de carros que mais vende, e isto nos proporciona 95% das observações.
+
+```{r}
+
+preco <- dds
+
+#Corresponde a 95% do banco de dados
+preco <- preco[preco$cor %in% c('Branco', 'Cinza',
+                             'Prata','Preto',
+                             'Vermelho'),]
+```
+
+Respondendo a pergunta, se a cor do carro influência em seu preço.
+
+
+```{r}
+#H0: A cor do carro não importa em seu preço
+#Ha: A cor do carro importa em seu preço
+
+kruskal.test(preco$preco, preco$cor)
+
+```
+
+Resposta: Sim, a cor do carro é um fator importante em seu preço.
+
+Sofisticando a pergunta, será que o preço do carro da cor vermelha possui diferença significativa em relação ao preço do carro branco?
+
+```{r}
+
+dunn.test(preco$preco, preco$cor, method="holm")
+
+```
+
+Sim, a cor do carro é um fator significativo na composição do preço. Todas combinações par a par, por exemplo, o preço do carro prata é diferente do preço do carro preto.
+
+Vamos buscar um meio de explicitar essa conclusão em imagens.
+
+Primeira idéia é buscar gráficos boxplot lado a lado e comparar-los.
+
+
+Plotei sem os outlines, pois levando-os em conta, o *dashboard* ficaria com difícil interpretação.
+
+```{r}
+#removendo fatores não usados
+preco$cor = factor(preco$cor)
+
+#boxplot da variável preço e cor
+boxplot(preco ~ cor,
+        data = preco, xlab = "Cor",
+        ylab = "Preço",
+        frame = FALSE, col = c('white','light gray', 
+                               'dark gray', 'yellow', 
+                               'red'),outline = F)
+```
+
+Perceba que os boxplots possuem tamanhos diferentes validando a conclusão dada no teste de kruskal-Wallis. 
+
+Outro meio de verificar se o preço do carro é influenciável pela cor é usando a função plotmeans do pacote gplots.
+
+```{r}
+
+library(gplots)
+
+plotmeans(preco ~ cor, data = preco, frame = FALSE, xlab = "Cor",
+          ylab = "Preço",main="Mean Plot with 95% CI", 
+          col = 'dark blue')
+
+
+```
+
+Há distâncias significativas das médias dos preços em relação a cor, portanto temos fortes evidências que a cor do carro influencia em seu preço.
+
+
+&nbsp;
+
+**b)** Quais são as marcas e modelos mais presentes no mercado?
+
+A primeira pergunta que vem a mente é: Quais as marcas que mais vende nacionalmente? E os modelos?
+
+Para responder essas perguntas verificarei as marcas mais vendidas e modelos, respectivamente. 
+
+Logo em seguida, iremos comparar com as regiões correspondentes as concessionárias.
+
+Quais são as marcas mais vendidas nacionalmente?
+
+O processo de criação dos top10 das marcar e modelos vai ser repetido nesse processo: fazer um gráfico simples vendo em ordem decrescente das marcas/modelos mais vendidas, depois, vamos filtrar e mostrar um gráfico mais agradável visualmente.
+
+Gráfico simples
+
+```{r}
+
+#Verificando se há NAs na variável
+dds[is.na(dds$marca),] 
+
+count_data <- dds %>% 
+  count(marca)
+    
+      #plotando 
+ggplot(count_data[count_data$n > 4000,], 
+       aes(x = reorder(marca,-n), y = n )) + 
+  
+  geom_bar(stat = 'identity', 
+           fill = '#073980', color = 'black') +
+  
+  geom_text(aes(label = n), vjust = -.25) + 
+  labs(x = 'Marca', y = 'Quantidade', 
+       title = 'As Marcas Mais Vendidas no Brasil') +
+ 
+   theme_minimal()
+
+```
+
+Vimos as marcas que mais vende nacionalmente. A quantidade está explicitado acima das barras.
+
+Buscaremos visualisar as 10 maiores marcas e modelos. Com intuíto de não poluir os *dashboards*. 
+
+
+Apoiado no gráfico acima, criaremos um data.frame chamado top10.
+
+
+Gráfico filtrado 
+
+```{r}
+
+#### Selecionando as 10 Marcas mais Vendidas do Brasil ####
+
+top10 <- dds[dds$marca %in% c('Chevrolet', 'Fiat', 
+                              'Ford', 'Honda', 
+                              'Hyundai', 'Jeep', 
+                              'Nissan', 'Renault', 
+                              'Toyota', 'Volkswagen'),]
+
+
+
+```
+
+Para as demais regiões apresentaremos somente os gráficos filtrados.
+
+As marcas mais presente no mercado nacional são 
+
+```{r}
+
+count_data <- top10 %>% 
+  count(marca)
+
+      #plotando
+ggplot(count_data, aes(x = reorder(marca,-n), y = n )) + 
+  
+  geom_bar(stat = 'identity', 
+           fill = c('dark blue','dark red','blue',
+                    'dark orange','light blue', '100403',
+                    'light gray','7f935b','black', 
+                    '073980'), color = 'black') +
+  
+  geom_text(aes(label = n), vjust = -.25) + 
+  labs(x = 'Marca', y = 'Quantidade',
+       title = 'As 10 Marcas Mais Vendidas no Brasil') +
+ 
+   theme_minimal()
+
+```
+
+Chevrolet, Volkswagen, Fiat, Renault, Ford, Hyundai, Honda, Toyota, Jeep e Nissan, respectivamente.
+
+
+&nbsp;
+
+Os modelos mais vendidos nacionalmente são
+
+```{r}
+
+#### Nacional -  Modelo ####
+count_data <- dds %>% 
+  count(modelo)
+
+ggplot(count_data[count_data$n > 6000,], 
+       aes(x = reorder(modelo,-n), y = n )) + 
+  
+  geom_bar(stat = 'identity',
+           fill = c('black', '073980', 
+                    'light blue','light blue', 
+                    'blue', '7f935b',
+                    'dark blue','dark blue',
+                    '100403','7f935b'),color = 'black') +
+  
+  geom_text(aes(label = n), vjust = -.25) + 
+  labs(x = 'Modelo', y = 'Quantidade', 
+       title = 'Os Modelos mais Vendidos Nacionalmente') +
+ 
+   theme_minimal()
+
+
+
+```
+
+Onix, HB20, Ka, Prisma, Sandero, Logan, Gol, Corolla, HB20S, Renegade.
+
+Perceba que mantivemos as cores das marcas em cada modelo, podemos ver que Onix e Prisma são modelos da Chevrolet, enquanto que Sandero e Logan são da Renault.
+
+
+
+Partiremos para a segunda parte. Vereficar quais modelos e marcas mais presentes nas regiões de São Paulo, Distrito Federal, Bahia e Rio Grande do Sul.
+
+
+&nbsp;
+
+***São Paulo***
+
+As marcas mais presentes em São Paulo são
+
+```{r}
+#### São Paulo - Marca ####
+sp <- dds[dds$estado == 'SP',]
+
+
+
+count_data <- sp %>% 
+  count(marca)
+
+
+    #Plotando
+ggplot(count_data[count_data$n > 5000,], 
+       aes(x = reorder(marca,-n), y = n )) + 
+  
+  geom_bar(stat = 'identity', 
+           fill = c('dark blue','dark red',
+                    'blue','dark orange',
+                    'light blue', '100403',
+                    'light gray','7f935b',
+                    'black','073980'),color = 'black') +
+  
+  geom_text(aes(label = n), vjust = -.25) + 
+  labs(x = 'Marca', y = 'Quantidade',
+       title = 'As Marcas Mais Vendidas na Concessionária de São Paulo') +
+  
+  theme_minimal()
+```
+
+Volkswagen, Hyundai, Fiat, Ford, Renault, Honda, Toyota, Nissan e Jeep
+
+
+&nbsp;
+
+Os Modelos mais vendidos em São Paulo são
+
+```{r}
+
+sp <- dds[dds$estado == 'SP',]
+
+
+count_data <- sp %>% 
+  count(modelo)
+
+
+#plotando
+ggplot(count_data[count_data$n > 2800,], 
+       aes(x = reorder(modelo,-n), y = n )) + 
+  
+  geom_bar(stat = 'identity', 
+           fill = c('black', 'dark orange',
+                    '073980', 'light blue',
+                    'light blue', 'blue',
+                    'dark blue', 'dark blue',
+                    '100403', '7f935b'),
+           
+           
+           color = 'black') +
+  
+  geom_text(aes(label = n), vjust = -.25) + 
+  labs(x = 'Modelos', y = 'Quantidade',
+       title = 'Os Modelos mais Vendidos na Região de São Paulo') +
+  
+  theme_minimal()
+
+```
+
+Onix, HB20, Prisma, Ka, Sandero, Corolla, HB20S, Fox, Renegade e Fit, respectivamete.
+
+
+&nbsp;
+
+***Distrito Federal***
+
+As marcas mais presentes em Distrito Federal são 
+
+```{r}
+#### Distrito Federal - Marca ####
+
+df <- dds[dds$estado == 'DF',]
+
+
+count_data <- df %>% 
+  count(marca)
+
+
+    #Plotando
+ggplot(count_data[count_data$n > 600,], 
+       aes(x = reorder(marca,-n), y = n )) + 
+  
+  geom_bar(stat = 'identity', 
+           fill = c('dark blue','dark red',
+                    'blue','dark orange',
+                    'light blue','98856d',
+                    'yellow','7f935b',
+                    'black','073980'),color = 'black') +
+  
+  geom_text(aes(label = n), vjust = -.25) + 
+  labs(x = 'Marca', y = 'Quantidade', title = 'As Marcas Mais Vendidas na Região de Distrito Federal') +
+  theme_minimal()
+
+
+```
+
+Fiat, Chevrolet, Volkswagen, Ford, Renault, Hyundai, Toyota, Pegeout, Honda e Nissan, respectivamente. 
+
+
+&nbsp;
+
+Os modelos mais vendidos no Distrito Federal são
+
+```{r}
+#### Distrito Federal - Modelo ####
+df <- dds[dds$estado == 'DF',]
+
+
+count_data <- df %>% 
+  count(modelo)
+
+ggplot(count_data[count_data$n > 310,], 
+       aes(x = reorder(modelo,-n), y = n )) + 
+  
+  geom_bar(stat = 'identity', 
+           fill = c('black', 'dark blue',
+                    '073980', 'light blue',
+                    'blue', 'blue',
+                    'dark red', '7f935b',
+                    '073980', '073980'),
+           color = 'black') +
+  
+  geom_text(aes(label = n), vjust = -.25) + 
+  labs(x = 'Modelos', y = 'Quantidade',
+       title = 'Os Modelos Mais Vendidas na Região de Distrito Federal') +
+  
+  theme_minimal()
+
+
+
+```
+
+HB20, Gol, Onix, Cruze, Palio, Ka, Sandero, Corolla, Voyage e UP!, respectivamente.
+
+
+&nbsp;
+
+***Bahia***
+
+As marcas mais vendidos na Bahia são 
+
+```{r}
+#### Bahia - Marca ####
+ba <- dds[dds$estado == 'BA',]
+
+
+count_data <- ba %>% 
+  count(marca)
+
+ggplot(count_data[count_data$n > 100,],
+       aes(x = reorder(marca,-n), y = n )) + 
+  
+  geom_bar(stat = 'identity', 
+           fill = c('dark blue','dark red',
+                    'blue','dark orange',
+                    'light blue', '100403',
+                    'light gray','7f935b',
+                    'black','073980'), color = 'black') +
+  
+  
+  geom_text(aes(label = n), vjust = -.25) + 
+  
+  labs(x = 'Marca', y = 'Quantidade', 
+       title = 'As Marcas Mais Vendidas na Região da Bahia') +
+  
+  theme_minimal()
+
+
+```
+
+Hyundai, Renault, Fiat, Chevrolet, Ford, Volkswagen, Toyota, Jeep, Nissan e Honda, respectivamente.
+
+
+&nbsp;
+
+O modelo mais vendidos são
+
+```{r}
+#### Bahia- Modelo ####
+ba <- dds[dds$estado == 'BA',]
+
+
+count_data <- ba %>% 
+  count(modelo)
+
+ggplot(count_data[count_data$n > 110,], 
+       aes(x = reorder(modelo,-n), y = n )) + 
+  
+  geom_bar(stat = 'identity', 
+           fill = c('dark red', 'blue',
+                    '073980', 'light blue',
+                    'light blue', 'blue',
+                    '7f935b', 'dark blue',
+                    '100403', '7f935b'), 
+           color = 'black') +
+  
+  geom_text(aes(label = n), vjust = -.25) + 
+  labs(x = 'Modelo', y = 'Quantidade', 
+       title = 'Os Modelos Mais Vendidas na Região da Bahia') +
+  
+  theme_minimal()
+
+
+```
+
+HB20, Onix, Ka, Sandero, HB20S, Kwid, Argo, Gol, Renegade e EcoSport, respectivamente.
+
+
+&nbsp;
+
+***Rio Grande do Sul***
+
+As marcas mais vendidos no Rio Grande do Sul são
+
+```{r}
+#### Rio Grande do Sul - Marca ####
+
+
+rs <- dds[dds$estado == 'RS',]
+
+
+count_data <- rs %>% 
+  count(marca)
+
+      #Plotando
+
+ggplot(count_data[count_data$n > 360,], 
+       aes(x = reorder(marca,-n), y = n )) + 
+  
+  geom_bar(stat = 'identity', 
+           fill = c('dark blue','pink',
+                    'dark red','blue',
+                    'light blue','100403',
+                    'light gray','7f935b',
+                    'black','073980'),color = 'black')+
+  
+  geom_text(aes(label = n), vjust = -.25) + 
+  labs(x = 'Marca', y = 'Quantidade', 
+       title = 'As Marcas Mais Vendidas na Região do Rio Grande do Sul') +
+  
+  theme_minimal()
+
+```
+
+Chevrolet, Fiat, Volkswagen, Ford, Hyundai, Renault, Toyota, Pegeout, Citroen e Jeep, respectivamente.
+
+
+&nbsp;
+
+Os modelos mais presentes no Rio Grande do Sul são
+
+```{r}
+#### Rio Grande do Sul - Modelo ####
+rs <- dds[dds$estado == 'RS',]
+
+
+count_data <- rs %>% 
+  count(modelo)
+
+ggplot(count_data[count_data$n > 220,],
+       aes(x = reorder(modelo,-n), y = n )) + 
+  
+  geom_bar(stat = 'identity', 
+           fill = c('black', '073980',
+                    'light blue', 'light blue',
+                    'blue', '7f935b',
+                    'dark blue', 'dark blue',
+                    '7f935b', 'dark red'), 
+           color = 'black') +
+  
+  geom_text(aes(label = n), vjust = -.25) + 
+  labs(x = 'Modelo', y = 'Quantidade',
+       title = 'Os Modelos Mais Vendidas na Região do Rio Grande do Sul') +
+  
+  theme_minimal()
+
+```
+
+Onix, HB20, Ka, Sandero, Prisma, Logan, Gol, HB20S, Uno e Corolla, respectivamente.
+
+
+A seguir responderei o cliente por estados nas quais possuí concessionária. Na ordem de SP, DF, BA, DF.
+
+***2)*** Olhando para os modelos mais predominantes (maior presença) na minha região:
+
+***a)*** Algum deles apresenta uma maior desvalorização? Ou uma maior valorização? 
+
+***b)*** Existe uma desvalorização do carro baseadona quilometragem dele?
+
+```{r, warning=FALSE, message=FALSE}
+#### 2A ####
+
+#verificando a variável data
+#summary(dds$data)
+
+dds$data <- as.character(dds$data)
+
+#Modificando a Variável data nos dias de venda para o mês que foi vendido
+
+dds[dds$data %in% c('2020-10-01','2020-10-02','2020-10-03',
+                           '2020-10-04','2020-10-05','2020-10-06',
+                           '2020-10-07','2020-10-08','2020-10-09',
+                           '2020-10-10','2020-10-11','2020-10-12',
+                           '2020-10-13','2020-10-14','2020-10-15',
+                           '2020-10-16','2020-10-17','2020-10-18',
+                           '2020-10-19','2020-10-20','2020-10-21',
+                           '2020-10-22','2020-10-23','2020-10-24',
+                           '2020-10-25','2020-10-26','2020-10-27',
+                           '2020-10-28','2020-10-29', '2020-10-30',
+                           '2020-10-31') ,]$data = 'Outubro'
+
+
+dds[dds$data %in% c('2020-11-01','2020-11-02','2020-11-03',
+                           '2020-11-04','2020-11-05','2020-11-06',
+                           '2020-11-07','2020-11-08','2020-11-09',
+                           '2020-11-10','2020-11-11','2020-11-12',
+                           '2020-11-13','2020-11-14','2020-11-15',
+                           '2020-11-16','2020-11-17','2020-11-18',
+                           '2020-11-19','2020-11-20','2020-11-21',
+                           '2020-11-22','2020-11-23','2020-11-24',
+                           '2020-11-25','2020-11-26','2020-11-27',
+                           '2020-11-28','2020-11-29','2020-11-30'
+                           ) ,]$data = 'Novembro'
+
+
+dds[dds$data %in% c('2020-12-01','2020-12-02','2020-12-03',
+                           '2020-12-04','2020-12-05','2020-12-06',
+                           '2020-12-07','2020-12-08','2020-12-09',
+                           '2020-12-10','2020-12-11','2020-12-12',
+                           '2020-12-13','2020-12-14','2020-12-15',
+                           '2020-12-16','2020-12-17','2020-12-18',
+                           '2020-12-19','2020-12-20','2020-12-21',
+                           '2020-12-22','2020-12-23','2020-12-24',
+                           '2020-12-25','2020-12-26','2020-12-27',
+                           '2020-12-28','2020-12-29','2020-12-30',
+                           '2020-12-31') ,]$data = 'Dezembro'
+
+```
+
+
+&nbsp;
+
+***São Paulo***
+
+Selecionando os modelos mais vendidos no Estado de SP.
+
+ 
+```{r}
+#### 2B #####
+sp <- dds[dds$estado == 'SP' &
+            dds$modelo %in% c('Onix','HB20','Prisma',
+                          'Ka', 'Sandero'),]
+```
+
+O sumário foi usado para filtrar as variável preço no passo seguinte, pois filtraremos um valor um pouco acima do terceiro quartil para evitarmos um gráfico de dispersão pouco informativo.
+
+```{r, warning=FALSE, message=FALSE}
+
+summary(sp$km)
+summary(sp$preco)
+
+```
+
+```{r}
+sp %>%
+  filter(preco < 70000 & km < 300000) %>%
+  ggplot(aes(x = km, y = preco))+
+  labs(x = 'Kilometros (km)', y = 
+         'Preço', title = 'Gráfico de Dispersão - Preço e KM em São Paulo')+
+  geom_point() + 
+  geom_smooth() +
+  theme_minimal()
+```
+
+Graficamente vemos que há uma tendência de quanto maior a quilometragem do carro menor o valor de mercado ele terá, e pelo comportamento do gráfico usaremos correlação de Spearman.
+
+```{r}
+
+cor <- cor.test(sp$km, sp$preco, method="spearman")
+cor
+
+```
+
+Temos evidências de que há correlação entre as variáveis e pela saída do R temos que a correlação corresponde a conclusão dada no gráfico de dispersão, ou seja, quanto mais rodado o carro menor o seu valor de venda.
+
+Os modelos mais vendidos de SP apresenta alguma desvalorizaçao?
+
+```{r}
+
+kruskal.test(sp$preco, sp$data)
+
+```
+
+Há diferença dos preços de venda em relação aos meses.
+
+```{r}
+
+dunn.test(sp$preco, sp$data,method="holm")
+
+```
+
+Não existe diferença de preços entre os meses de Novembro e Outubro. Há diferença do mes de Dezembro aos demais.
+
+
+```{r}
+
+sp %>%
+  filter(preco < 70000) %>%
+  ggplot(aes(x = modelo,y = preco, color = data))+
+  labs(x = 'Modelo', y = 'Preço', title = 'Boxplot da variação de preço dos modelos em meses em SP')+
+  geom_boxplot() + 
+  theme_minimal()
+
+
+```
+
+Ford Ka, Onix e Prisma aparentam ter uma desvalorização ao longo dos meses - de outubro à dezembro. HB20 desvaloriza de outubro a novembro. E o Renault Sandero desvaloriza de outubro a novembro e em dezembro valoriza mas não chega no mesmo patamar de valor comparada em Outubro.
+
+
+&nbsp;
+
+***Distrito Federal***
+
+Selecionando os carros mais vendidos no Distrito Federal.
+
+```{r}
+
+df <- dds[dds$estado == 'DF' & dds$modelo %in% c('HB20','Gol','Onix',
+                                             'Cruze','Palio'),]
+```
+
+```{r, warning=FALSE, message=FALSE}
+summary(df$preco)
+summary(df$km)
+```
+
+```{r}
+df %>%
+  filter(preco < 70000 & km < 300000) %>%
+  ggplot(aes(x = km, y = preco))+
+  labs(x = 'Kilometros (km)', y = 
+         'Preço', title = 'Gráfico de Dispersão - Preço e KM no Distrito Federal')+
+  geom_point() + 
+  geom_smooth() +
+  theme_minimal()
+
+```
+
+Graficamente vemos que há uma tendência de quanto maior a quilometragem do carro menor o valor de mercado ele terá, e pelo comportamento do gráfico usaremos correlação de Spearman.
+
+```{r}
+cor <- cor.test(df$km, df$preco, method="spearman")
+cor
+
+```
+
+Temos evidências de que há correlação entre as variáveis e pela saída do R temos que a correlação corresponde a conclusão dada no gráfico de dispersão, ou seja, quanto mais rodado o carro menor o seu valor de venda.
+
+Os modelos mais vendidos de DF apresenta alguma desvalorizaçao?
+
+```{r}
+
+kruskal.test(df$preco, df$data)
+
+```
+
+Há diferença dos preços de venda em relação aos meses.
+
+```{r}
+
+dunn.test(df$preco, df$data,method="holm")
+
+```
+
+Não existe diferença de preços entre os meses de Novembro e Outubro. Há diferença do mes de Dezembro aos demais.
+
+```{r}
+
+
+df %>%
+  filter(preco < 70000) %>%
+  ggplot(aes(x = modelo,y = preco, color = data))+
+  labs(x = 'Modelo', y = 'Preço', title = 'Boxplot da variação de preço dos modelos em meses no DF')+
+  geom_boxplot() + 
+  theme_minimal()
+
+
+
+```
+
+Fiat Palio obtém valorização do preço no mês de Dezembro. VW Gol sua média de preço obtem o menor valor no mês de NOvembro e em Dezembro há uma valorização em seu preço.
+
+
+&nbsp;
+
+***Bahia***
+
+```{r}
+ba <- dds[dds$estado == 'BA' & dds$modelo %in% c('HB20','Onix','Ka',
+                                             'Sandero','HB20S'),]
+
+```
+
+```{r, warning=FALSE, message=FALSE}
+summary(ba$km)
+summary(ba$preco)
+```
+
+```{r}
+ba %>%
+  filter(preco < 70000 & km < 300000) %>%
+  ggplot(aes(x = km, y = preco))+
+  labs(x = 'Kilometros (km)', y = 
+         'Preço', title = 'Gráfico de Dispersão entre as variáveis Km e Preço')+
+  geom_point() + 
+  geom_smooth() +
+  theme_minimal()
+```
+
+Graficamente vemos que há uma tendência de quanto maior a quilometragem do carro menor o valor de mercado ele terá, e pelo comportamento do gráfico usaremos correlação de Spearman.
+
+```{r}
+cor <- cor.test(ba$km, ba$preco, method="spearman")
+cor
+```
+
+Temos evidências de que há correlação entre as variáveis e pela saída do R temos que a correlação corresponde a conclusão dada no gráfico de dispersão, ou seja, quanto mais rodado o carro menor o seu valor de venda.
+
+Os modelos mais vendidos de BA apresenta alguma desvalorizaçao?
+
+```{r}
+
+kruskal.test(ba$preco, ba$data)
+
+```
+
+Não há diferença dos preços de venda em relação aos meses. Portanto não faz sentido analisar os gráficos boxplots buscando alguma variação dos preços ao longo dos meses.
+
+
+&nbsp;
+
+***Rio Grande do Sul***
+
+```{r}
+rs <- dds[dds$estado == 'RS' & dds$modelo %in% c('Onix','HB20','Ka',
+                                             'Sandero','Prisma'),]
+```
+
+```{r, warning=FALSE, message=FALSE}
+
+summary(rs$preco)
+summary(rs$km)
+
+```
+
+```{r}
+rs %>%
+  
+  filter(preco < 70000 & km < 300000) %>%
+  
+  ggplot(aes(x = km, y = preco))+
+  labs(x = 'Kilometros (km)', y = 
+         'Preço', title = 'Gráfico de Dispersão entre as variáveis Km e Preço na BA')+
+  geom_point() + 
+  geom_smooth() +
+  theme_minimal()
+```
+
+Graficamente vemos que há uma tendência de quanto maior a quilometragem do carro menor o valor de mercado ele terá, e pelo comportamento do gráfico usaremos correlação de Spearman.
+
+```{r}
+cor <- cor.test(rs$km, rs$preco, method="spearman")
+cor
+
+```
+
+Temos evidências de que há correlação entre as variáveis e pela saída do R temos que a correlação corresponde a conclusão dada no gráfico de dispersão, ou seja, quanto mais rodado o carro menor o seu valor de venda.
+
+
+&nbsp;
+
+Os modelos mais vendidos de RS apresenta alguma desvalorizaçao?
+
+```{r}
+
+kruskal.test(rs$preco, rs$data)
+
+```
+
+Há diferença dos preços de venda em relação aos meses.
+
+```{r}
+dunn.test(rs$preco, rs$data,method="holm")
+
+```
+
+Há diferença de preços nos 3 meses.
+
+```{r}
+rs %>%
+  filter(preco < 70000) %>%
+  ggplot(aes(x = modelo,y = preco, color = data))+
+  labs(x = 'Modelo', y = 'Preço', title = 'Boxplot da variação de preço dos modelos em meses na BA')+
+  geom_boxplot() + 
+  theme_minimal()
+
+``` 
+
+Há uma desvalorização ao longo dos meses os modelos Prisma e Onix.
+
